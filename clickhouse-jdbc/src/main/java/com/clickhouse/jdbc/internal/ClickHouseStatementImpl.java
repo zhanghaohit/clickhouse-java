@@ -435,6 +435,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     protected ClickHouseSqlStatement parseSqlStatements(String sql) {
         parsedStmts = connection.parse(sql, getConfig(), request.getSettings());
 
+        // System.out.println("parsedStmts: " + parsedStmts.toString());
+
         if (parsedStmts == null || parsedStmts.length == 0) {
             // should never happen
             throw new IllegalArgumentException("Failed to parse given SQL: " + sql);
@@ -526,15 +528,63 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         return currentResult != null;
     }
 
+    public static String convert(String input) {
+        input = input.replace("\"", "'");
+        StringBuilder result = new StringBuilder();
+        boolean inQuotes = false;
+        StringBuilder currentSegment = new StringBuilder();
+
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+
+            if (c == '\'') {
+                if (inQuotes) {
+                    // End of quoted segment
+                    result.append(currentSegment.toString());
+                    currentSegment.setLength(0); // Clear the segment
+                    result.append(c); // Append the closing quote
+                    inQuotes = false;
+                } else {
+                    // Start of quoted segment
+                    result.append(currentSegment.toString().toLowerCase()); // Convert current segment to lowercase
+                    currentSegment.setLength(0); // Clear the segment
+                    result.append(c); // Append the opening quote
+                    inQuotes = true;
+                }
+            } else {
+                currentSegment.append(c);
+            }
+        }
+
+        // Append the last segment if not in quotes
+        if (!inQuotes) {
+            result.append(currentSegment.toString().toLowerCase());
+        } else {
+            result.append(currentSegment.toString()); // Just append as is, if it's in quotes
+        }
+
+        String ret = result.toString();
+        ret = ret.replace("weekofyear", "toISOWeek");
+        ret = ret.replaceAll("dayofweek\\((.*?)\\)", "toDayOfWeek($1, 3)");
+        return ret;
+    }
+
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
+        // System.out.println("executeQuery before convert: " + sql);
+        sql = convert(sql);
+
+        // System.out.println("executeQuery: " + sql);
         ensureOpen();
         if (!batchStmts.isEmpty()) {
             throw SqlExceptionUtils.undeterminedExecutionError();
         }
 
+        // System.out.println("before parse executeQuery: " + sql);
         parseSqlStatements(sql);
+        // System.out.println("after parse executeQuery: " + sql);
         getLastResponse(null, null, null);
+        // System.out.println("after getResponse executeQuery: " + sql);
         return currentResult != null ? currentResult : newEmptyResultSet();
     }
 

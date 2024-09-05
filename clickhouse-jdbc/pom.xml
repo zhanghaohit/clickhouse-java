@@ -10,6 +10,7 @@
     </parent>
 
     <artifactId>clickhouse-jdbc</artifactId>
+    <version>${revision}-mldb</version>
     <packaging>jar</packaging>
 
     <name>ClickHouse JDBC Driver</name>
